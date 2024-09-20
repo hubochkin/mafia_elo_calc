@@ -2,6 +2,8 @@ const fs = require('fs');
 
 // Load your JSON data from the file
 const jsonData = require('./all_games_mafia.json');
+const { machine } = require('os');
+const { mainModule } = require('process');
 
 // Map numeric roles to team roles
 const roleToTeam = {
@@ -14,7 +16,7 @@ const roleToTeam = {
 // Function to group players into games
 function groupPlayersIntoGames(jsonData) {
     const games = {}; // To store games
-    jsonData.forEach(player => {
+    jsonData.reverse().forEach(player => {
         const gameKey = `Tournament${player.TournamentId}_Game${player.GameNumber}_Table${player.TableNumber}`;
         if (!games[gameKey]) {
             games[gameKey] = [];
@@ -70,11 +72,11 @@ function processGames(games) {
         });
 
         // Console log the list of players and their Elo changes
-        // console.log(`Game: ${gameKey}`);
+        console.log(`Game: ${gameKey}`);
         updatedGameData.forEach(player => {
             const change = player.newElo - player.oldElo;
             const changeStr = change >= 0 ? `+${change.toFixed(2)}` : `${change.toFixed(2)}`;
-            // console.log(`${player.name} (Place: ${player.place}) ${player.oldElo.toFixed(2)} -> ${player.newElo.toFixed(2)} (${changeStr})`);
+            console.log(`${player.name} (Place: ${player.place}) ${player.oldElo.toFixed(2)} -> ${player.newElo.toFixed(2)} (${changeStr})`);
         });
         console.log(''); // Add an empty line between games
     }
@@ -106,28 +108,27 @@ function calculateElo(gameData) {
 
     // Calculate new Elo for each player
     gameData = gameData.map(player => {
-        let baseChange = player.teamWin ? 14 : -15;
+        let baseChange = player.teamWin ? 13 : -15;
         let teamAvgElo = player.role === "mafia" ? mafiaAvgElo : citizenAvgElo;
         let opponentTeamAvgElo = player.role === "mafia" ? citizenAvgElo : mafiaAvgElo;
-
+        const teamEloDiff = opponentTeamAvgElo - teamAvgElo;
+        const opponentsStronger = teamEloDiff > 0
+        const playersELOImpact = player.oldElo / teamAvgElo;
         let eloChange;
+        const diffCoef = opponentsStronger  ? (((Math.abs(teamEloDiff) + 1000) / player.oldElo)) : (  player.oldElo / ((Math.abs(teamEloDiff) + 1000)))
         if (player.teamWin) {
             // Winning team: Elo gain decreases with place
-            eloChange = (baseChange - (player.place - 1)) * (1 + (opponentTeamAvgElo / player.oldElo));
+            
+            eloChange = (baseChange - (player.place - 1)) * diffCoef
+            
+            
         } else {
+            
             // Losing team: Elo loss decreases with higher place (less negative)
-            eloChange = (baseChange + (player.place - 1)) * (1 + (player.oldElo / opponentTeamAvgElo));
+            eloChange = (baseChange + (player.place - 1)) * diffCoef
         }
 
-        // Calculate scaling factor based on player's Elo relative to team average
-        let scalingFactor = teamAvgElo / player.oldElo;
-        // Cap the scaling factor
-        scalingFactor = Math.min(Math.max(scalingFactor, 0.5), 1.5);
-
-        // Apply scaling factor to eloChange
-        const adaptiveChange = eloChange * scalingFactor;
-
-        player.newElo = player.oldElo + adaptiveChange;
+        player.newElo = player.oldElo + eloChange;
 
         return player;
     });
