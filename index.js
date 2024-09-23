@@ -34,6 +34,7 @@ function processGames(games) {
     for (const gameKey in games) {
         const gamePlayers = games[gameKey];
 
+        const tableNumber = gamePlayers[0].TableNumber;
         // Prepare data for the calculateElo function
         const gameData = gamePlayers.map(player => {
             const playerId = player.PlayerId;
@@ -53,7 +54,7 @@ function processGames(games) {
         });
 
         // Calculate new Elo ratings for this specific game
-        const updatedGameData = calculateElo(gameData);
+        const updatedGameData = calculateElo(gameData, tableNumber);
 
         // Update player Elo ratings
         updatedGameData.forEach(player => {
@@ -85,7 +86,7 @@ function processGames(games) {
 }
 
 // Updated calculateElo function
-function calculateElo(gameData) {
+function calculateElo(gameData, tableNumber) {
     // Separate players into teams
     let mafiaTeam = gameData.filter(player => player.role === "mafia");
     let citizenTeam = gameData.filter(player => player.role === "citizen");
@@ -108,24 +109,30 @@ function calculateElo(gameData) {
 
     // Calculate new Elo for each player
     gameData = gameData.map(player => {
-        let baseChange = player.teamWin ? 13 : -15;
+        let baseChange = player.teamWin ? 10 : -5;
         let teamAvgElo = player.role === "mafia" ? mafiaAvgElo : citizenAvgElo;
         let opponentTeamAvgElo = player.role === "mafia" ? citizenAvgElo : mafiaAvgElo;
         const teamEloDiff = opponentTeamAvgElo - teamAvgElo;
         const opponentsStronger = teamEloDiff > 0
+        const avgElo = (teamAvgElo + opponentTeamAvgElo) / 2
         const playersELOImpact = player.oldElo / teamAvgElo;
         let eloChange;
-        const diffCoef = opponentsStronger  ? (((Math.abs(teamEloDiff) + 1000) / player.oldElo)) : (  player.oldElo / ((Math.abs(teamEloDiff) + 1000)))
+        const diffCoef =  ( opponentTeamAvgElo / player.oldElo    )
+        // eloChange = (baseChange - (player.place - 1)) * winCoef
         if (player.teamWin) {
             // Winning team: Elo gain decreases with place
-            
-            eloChange = (baseChange - (player.place - 1)) * diffCoef
-            
-            
+            const winCoef = diffCoef >= 0.8 ? diffCoef : diffCoef - 0.2
+            eloChange = (baseChange - (player.place - 1) ) * winCoef
+            // console.log(player.name, diffCoef)
+            if (tableNumber == 0) {
+                eloChange *= 2;
+            }
         } else {
-            
             // Losing team: Elo loss decreases with higher place (less negative)
-            eloChange = (baseChange + (player.place - 1)) * diffCoef
+            const lose = diffCoef < 1 ? player.oldElo / opponentTeamAvgElo  : diffCoef 
+            console.log(player.name, diffCoef, player.oldElo / opponentTeamAvgElo, lose)
+            eloChange = (baseChange * player.oldElo / opponentTeamAvgElo ) 
+            // console.log(player.name, diffCoef,  player.oldElo  / teamAvgElo, teamAvgElo)
         }
 
         player.newElo = player.oldElo + eloChange;
