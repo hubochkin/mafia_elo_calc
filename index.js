@@ -3,12 +3,15 @@ const fs = require("fs");
 // Load your JSON data from the file
 const jsonData = require("./all_games_mafia.json");
 
+const ROLE_CITIZEN = "citizen";
+const ROLE_MAFIA = "mafia";
+
 // Map numeric roles to team roles
 const roleToTeam = {
-  0: "citizen", // Citizen
-  1: "citizen", // Sheriff
-  2: "mafia", // Mafia
-  3: "mafia", // Don
+    0: ROLE_CITIZEN, // Citizen
+    1: ROLE_CITIZEN, // Sheriff
+    2: ROLE_MAFIA, // Mafia
+    3: ROLE_MAFIA, // Don
 };
 
 // Function to group players into games
@@ -24,6 +27,8 @@ function groupPlayersIntoGames(jsonData) {
   return games;
 }
 
+const BASE_RANK = 1000;
+
 // Function to process games and calculate Elo ratings
 function processGames(games) {
   const playerElos = {}; // To store players' Elo ratings
@@ -37,7 +42,7 @@ function processGames(games) {
     const gameData = gamePlayers.map((player) => {
       const playerId = player.PlayerId;
       // Get old Elo or default to 1000
-      const oldElo = playerElos[playerId] || 1000;
+      const oldElo = playerElos[playerId] || BASE_RANK;
       // Map role to team role
       const teamRole = roleToTeam[player.Role];
       // Prepare player data
@@ -86,8 +91,8 @@ function processGames(games) {
 // Updated calculateElo function
 function calculateElo(gameData, tableNumber) {
   // Separate players into teams
-  let mafiaTeam = gameData.filter((player) => player.role === "mafia");
-  let citizenTeam = gameData.filter((player) => player.role === "citizen");
+  let mafiaTeam = gameData.filter((player) => player.role === ROLE_MAFIA);
+  let citizenTeam = gameData.filter((player) => player.role === ROLE_CITIZEN);
 
   const avgElo = (team) =>
     team.reduce((sum, player) => sum + player.oldElo, 0) / team.length || 1000;
@@ -109,9 +114,8 @@ function calculateElo(gameData, tableNumber) {
   // Calculate new Elo for each player
   gameData = gameData.map((player) => {
     let baseChange = player.teamWin ? 10 : -5;
-    let teamAvgElo = player.role === "mafia" ? mafiaAvgElo : citizenAvgElo;
     let opponentTeamAvgElo =
-      player.role === "mafia" ? citizenAvgElo : mafiaAvgElo;
+      player.role === ROLE_MAFIA ? citizenAvgElo : mafiaAvgElo;
 
     let eloChange;
     const diffCoef = opponentTeamAvgElo / player.oldElo;
